@@ -28,16 +28,29 @@ public static class PrivilegeHelper {
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetCurrentProcess();
 
-    public static bool Enable(string name) {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    public static string Enable(string name) {
         IntPtr token;
-        if (!OpenProcessToken(GetCurrentProcess(), 0x28, out token)) return false;
-        long luid = 0;
-        if (!LookupPrivilegeValue(null, name, ref luid)) return false;
-        TOKEN_PRIVILEGES tp = new TOKEN_PRIVILEGES();
-        tp.Count = 1;
-        tp.Luid = luid;
-        tp.Attributes = 2;
-        return AdjustTokenPrivileges(token, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+        if (!OpenProcessToken(GetCurrentProcess(), 0x28, out token))
+            return "OpenProcessToken: " + Marshal.GetLastWin32Error();
+        try {
+            long luid = 0;
+            if (!LookupPrivilegeValue(null, name, ref luid))
+                return "LookupPrivilegeValue: " + Marshal.GetLastWin32Error();
+            TOKEN_PRIVILEGES tp = new TOKEN_PRIVILEGES();
+            tp.Count = 1;
+            tp.Luid = luid;
+            tp.Attributes = 2;
+            bool ok = AdjustTokenPrivileges(token, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+            int err = Marshal.GetLastWin32Error();
+            if (!ok) return "AdjustTokenPrivileges: " + err;
+            if (err == 1300) return "ERROR_NOT_ALL_ASSIGNED (1300): o processo nao tem o privilegio";
+            return null;
+        } finally {
+            CloseHandle(token);
+        }
     }
 }
 "@
@@ -45,8 +58,8 @@ public static class PrivilegeHelper {
     return [PrivilegeHelper]::Enable($name)
 }
 
-[void](Enable-Privilege 'SeTakeOwnershipPrivilege')
-[void](Enable-Privilege 'SeRestorePrivilege')
+$err = Enable-Privilege 'SeTakeOwnershipPrivilege'
+if ($null -ne $err) { throw "Falha ao habilitar SeTakeOwnershipPrivilege: $err" }
 
 $path   = 'SYSTEM\CurrentControlSet\Services\wuauserv'
 $admins = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'
