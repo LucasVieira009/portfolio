@@ -44,12 +44,16 @@ O detalhe que chamou atenção: **acontecia igual em janela elevada**. E não er
 o WSL — `Set-Service`, `Start-Service` e `dism /online /enable-feature` também
 retornavam "Acesso negado".
 
+A saída acima é da execução que chegou a iniciar a instalação. Na build
+`10.0.19041.4522` do `wsl.exe` o parâmetro `--no-distribution` ainda não era
+reconhecido — esse é o bloqueio 2, encontrado depois e descrito mais abaixo.
+
 ## Hipóteses que caíram
 
 | Hipótese | Como testei | Resultado |
 |---|---|---|
 | Falta de privilégio | `whoami /groups` na janela | `Administradores` presente — estava elevada |
-| Política de grupo | `Policies\Microsoft\Windows\WindowsUpdate` | Só `NoAutoUpdate=1` |
+| Política de grupo | `Policies\Microsoft\Windows\WindowsUpdate\AU` | Só `NoAutoUpdate=1` |
 | Antivírus de terceiros | Serviços e programas instalados | Nenhum |
 | Store corrompida | `wsl --update`, `--web-download` | Falhava igual |
 | Driver de anti-cheat | Serviços não-Microsoft | Presentes, mas irrelevantes |
@@ -64,7 +68,8 @@ $root = 'HKLM:\SYSTEM\CurrentControlSet\Services'
 $need = [System.Security.AccessControl.RegistryRights]::SetValue -bor `
         [System.Security.AccessControl.RegistryRights]::ChangePermissions
 
-$bad = foreach ($k in Get-ChildItem $root) {
+$keys = Get-ChildItem $root
+$bad = foreach ($k in $keys) {
     $acl = Get-Acl $k.PSPath
     $ok = $false
     foreach ($ace in $acl.Access) {
@@ -74,12 +79,13 @@ $bad = foreach ($k in Get-ChildItem $root) {
     }
     if (-not $ok) { $k.PSChildName }
 }
+"Chaves de servico travadas (sem SetValue p/ SYSTEM/Admins): $($bad.Count) de $($keys.Count)"
 $bad
 ```
 
 ```text
-Chaves de servico travadas (sem SetValue p/ SYSTEM/Admins): 1
-  wuauserv
+Chaves de servico travadas (sem SetValue p/ SYSTEM/Admins): 1 de 772
+wuauserv
 ```
 
 **1 outlier entre 772 chaves.** A ACL era só leitura para todo mundo:
@@ -101,6 +107,12 @@ tomar posse da chave (habilitando `SeTakeOwnership`), devolver `FullControl` par
 `SYSTEM` e `Administradores`, religar o serviço e remover a política de update.
 
 Script completo e idempotente nesta pasta: [`fix-wuauserv.ps1`](fix-wuauserv.ps1)
+
+> O script termina mandando rodar `wsl --install --no-distribution`. Na build
+> `10.0.19041.4522` isso ainda cai no bloqueio 2 — instale o WSL pelo MSI oficial
+> antes de usá-lo.
+
+O trecho que destrava a ACL:
 
 ```powershell
 $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
@@ -136,14 +148,19 @@ Technology). Depois do boot: `HvHost` = `Running`.
 
 **4. RemoteApp / `rdpclientax.dll`.** Diálogos de ActiveX e "não foi possível
 conectar ao computador remoto" ao abrir o WSL — era o **WSLg** tentando abrir
-sessão RDP. Desnecessário para uso headless:
+sessão RDP. Desnecessário para uso headless — em `C:\Users\<usuário>\.wslconfig`:
 
 ```ini
 [wsl2]
 guiApplications=false
 ```
 
+Depois de salvar, `wsl --shutdown` para o WSL reler o arquivo.
+
 ## Resultado final
+
+Estado final resumido a partir de `wsl --version`, `wsl -l -v` e
+`Get-Service HvHost, WslService, wuauserv`:
 
 ```text
 WSL              3.0.1.0
@@ -152,6 +169,8 @@ HvHost           Running
 WslService       Running / Automatic
 wuauserv         Running / Manual
 ```
+
+O UID padrão da distro se confirma com `wsl -d Ubuntu-24.04 -- id -u`.
 
 ## Aprendizados
 

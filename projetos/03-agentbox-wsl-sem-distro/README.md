@@ -1,7 +1,7 @@
 # 03 — `agentbox wsl init` abortando quando não há distro instalada
 
 **Ano:** 2026 · **Áreas:** WSL 2 · Linux · CLI · diagnóstico
-**Resultado:** ambiente WSL 2 + Ubuntu 24.04 + AgentBox configurado
+**Tempo:** [PREENCHER] · **Resultado:** ambiente WSL 2 + Ubuntu 24.04 + AgentBox configurado
 
 ---
 
@@ -64,19 +64,30 @@ A causa provável foi a digitação às cegas no prompt do assistente somada ao
 layout de teclado. Criar o usuário direto como root resolveu:
 
 ```powershell
-wsl -d Ubuntu-24.04 -u root -- bash -c "useradd -m -s /bin/bash lucas_aguiar; echo 'lucas_aguiar:SENHA' | chpasswd; printf '[user]\ndefault=lucas_aguiar\n' > /etc/wsl.conf; echo PRONTO"
+wsl -d Ubuntu-24.04 -u root -- bash -c "useradd -m -U -G sudo -s /bin/bash lucas_aguiar; echo 'lucas_aguiar:SENHA' | chpasswd; printf '[user]\ndefault=lucas_aguiar\n' > /etc/wsl.conf; echo PRONTO"
 ```
 
 `useradd` e `passwd` são comandos **Linux**: precisam rodar dentro do WSL, não no
-PowerShell. Troque `SENHA` pela senha real na hora de executar.
+PowerShell. Troque `SENHA` pela senha real na hora de executar — e cuidado com
+aspas, `$` ou `!` na senha, que o shell interpreta antes do `chpasswd`.
+
+Como o `/etc/wsl.conf` só é lido na inicialização da distro, rode
+`wsl --terminate Ubuntu-24.04` (ou `wsl --shutdown`) e abra o WSL de novo para o
+usuário padrão passar a valer.
 
 ## Resultado
+
+Estado final resumido a partir de `wsl --version`, `wsl -l -v` e
+`Get-Service WslService`:
 
 ```text
 WSL              3.0.1.0
 Ubuntu-24.04     v2  (DefaultUid=1000)
 WslService       Running / Automatic
 ```
+
+O usuário padrão (e o UID 1000) se confirma com
+`wsl -d Ubuntu-24.04 -- id -u lucas_aguiar`.
 
 Com a distro instalada e o usuário criado, o AgentBox concluiu a configuração e
 passou a rodar os agentes.
