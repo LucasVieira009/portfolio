@@ -55,9 +55,9 @@ A ordem foi escolhida para conduzir a leitura, não para listar features:
 ## Problemas e soluções
 
 **Problema:** o repositório acumulou lixo de empacotamento (`__MACOSX/`, `._*`,
-`.DS_Store`) e imagens duplicadas em várias pastas.
-**Solução:** `.gitignore` + remoção dos arquivos versionados por engano.
-> Ainda pendente neste repositório — registrado aqui como transparência.
+`.DS_Store`) e arquivos que não pertenciam ao produto.
+**Solução:** `.gitignore` + remoção do que estava versionado por engano, com tudo
+guardado antes em um repositório privado de backup.
 
 **Problema:** PIX e cartão precisavam conviver na mesma oferta sem quebrar a
 confiança no momento do clique.
