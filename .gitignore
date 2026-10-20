@@ -1,0 +1,13 @@
+# lixo de empacotamento (macOS)
+__MACOSX/
+.DS_Store
+._*
+
+# dependências / segredos
+node_modules/
+.env
+
+# contexto de agentes — fica na máquina, não no repositório público
+AGENTS.md
+CLAUDE.md
+_referencias/
